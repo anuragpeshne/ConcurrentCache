@@ -8,21 +8,29 @@ namespace ConcurrentCacheNS
     {
         private LinkedList<string> lruList;
         private Dictionary<string, LinkedListNode<string>> lruMap;
-        private int maxSize;
 
-        public LRUPolicy(int size)
+        private readonly object lockObj = new object();
+
+        public LRUPolicy()
         {
-            maxSize = size;
             lruList = new LinkedList<string>();
-            lruMap = new Dictionary<string, LinkedListNode<string>>(size);
+            lruMap = new Dictionary<string, LinkedListNode<string>>();
         }
 
         public string GetKeyToEvict()
         {
-            var node = lruList.Last;
-            lruList.RemoveLast();
-            lruMap.Remove(node.Value);
-            return node.Value;
+            // This method will be called on cache miss.
+            // We expect this to happen less frequently,
+            // => okay to block all the threads trying to get tail
+            string key;
+            lock (lockObj)
+            {
+                var node = lruList.Last;
+                lruList.RemoveLast();
+                lruMap.Remove(node.Value);
+                key = node.Value;
+            }
+            return key;
         }
 
         public void RegisterKeyHit(string key)
@@ -32,18 +40,22 @@ namespace ConcurrentCacheNS
 
         private void MoveKeyToFront(string key)
         {
-            LinkedListNode<string> node;
-            if (lruMap.ContainsKey(key))
+            // We should expect a lot of calls for this method
+            lock(lockObj)
             {
-                node = lruMap[key];
-                lruList.Remove(node);
+                LinkedListNode<string> node;
+                if (lruMap.ContainsKey(key))
+                {
+                    node = lruMap[key];
+                    lruList.Remove(node);
+                }
+                else
+                {
+                    node = new LinkedListNode<string>(key);
+                    lruMap[key] = node;
+                }
+                lruList.AddFirst(node);
             }
-            else
-            {
-                node = new LinkedListNode<string>(key);
-                lruMap[key] = node;
-            }
-            lruList.AddFirst(node);
         }
     }
 }

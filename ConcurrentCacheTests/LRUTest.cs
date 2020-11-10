@@ -9,7 +9,7 @@ namespace ConcurrentCacheTests
         [TestMethod]
         public void SingleThreaded_KeyToEvict()
         {
-            IEvictionPolicy policy = new LRUPolicy(5);
+            IEvictionPolicy policy = new LRUPolicy();
             for (int i = 0; i < 5; i++)
             {
                 policy.RegisterKeyHit(i.ToString());

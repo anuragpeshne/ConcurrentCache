@@ -1,5 +1,7 @@
 ﻿using ConcurrentCacheNS;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace ConcurrentCacheTests
 {
@@ -48,6 +50,50 @@ namespace ConcurrentCacheTests
             }
             // [1, 2, 3, 4, 5]
             Assert.AreEqual(cacheSize, cache.CacheHit);
+        }
+
+        [TestMethod]
+        public void SingleThreaded_CacheHits()
+        {
+            int cacheSize = 1000;
+            ConcurrentCache cache = new ConcurrentCache(cacheSize);
+            foreach(var i in Enumerable.Range(0, cacheSize / 2))  cache.Get(i.ToString());
+            Assert.AreEqual(0, cache.CacheHit);
+            Assert.AreEqual(cacheSize / 2, cache.TotalRequest);
+
+            foreach(var i in Enumerable.Range(0, cacheSize / 2)) cache.Get(i.ToString());
+            Assert.AreEqual(cacheSize / 2, cache.CacheHit);
+            Assert.AreEqual(cacheSize, cache.TotalRequest);
+
+            foreach(var i in Enumerable.Range(cacheSize / 2, cacheSize / 2)) cache.Get(i.ToString());
+            Assert.AreEqual(cacheSize / 2, cache.CacheHit);
+            Assert.AreEqual(cacheSize * 3 / 2, cache.TotalRequest);
+
+            foreach(var i in Enumerable.Range(0, cacheSize)) cache.Get(i.ToString());
+            Assert.AreEqual(cacheSize * 3 / 2, cache.CacheHit);
+            Assert.AreEqual(cacheSize * 5 / 2, cache.TotalRequest);
+        }
+
+        [TestMethod]
+        public void MultiThreaded_CacheHits()
+        {
+            int cacheSize = 1000;
+            ConcurrentCache cache = new ConcurrentCache(cacheSize);
+            Parallel.ForEach(Enumerable.Range(0, cacheSize / 2), (i) => cache.Get(i.ToString()));
+            Assert.AreEqual(0, cache.CacheHit);
+            Assert.AreEqual(cacheSize / 2, cache.TotalRequest);
+
+            Parallel.ForEach(Enumerable.Range(0, cacheSize / 2), (i) => cache.Get(i.ToString()));
+            Assert.AreEqual(cacheSize / 2, cache.CacheHit);
+            Assert.AreEqual(cacheSize, cache.TotalRequest);
+
+            Parallel.ForEach(Enumerable.Range(cacheSize / 2, cacheSize / 2), (i) => cache.Get(i.ToString()));
+            Assert.AreEqual(cacheSize / 2, cache.CacheHit);
+            Assert.AreEqual(cacheSize * 3 / 2, cache.TotalRequest);
+
+            Parallel.ForEach(Enumerable.Range(0, cacheSize), (i) => cache.Get(i.ToString()));
+            Assert.AreEqual(cacheSize * 3 / 2, cache.CacheHit);
+            Assert.AreEqual(cacheSize * 5 / 2, cache.TotalRequest);
         }
     }
 }

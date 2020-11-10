@@ -1,6 +1,8 @@
 ﻿using ConcurrentCacheNS;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace ConcurrentCacheNS
 {
@@ -9,40 +11,43 @@ namespace ConcurrentCacheNS
         public const int DEFAUL_MAX_SIZE = 500;
 
         // for validation, measuring perf
-        public int CacheHit { get; private set; }
-        public int TotalRequest { get; private set; }
+        public int CacheHit;
+        public int TotalRequest;
 
         private int maxSize;
-        private Dictionary<string, string> cacheMap;
+        private ConcurrentDictionary<string, string> cacheMap;
         private IEvictionPolicy evictionPolicy;
 
         public ConcurrentCache(int size = DEFAUL_MAX_SIZE)
         {
             maxSize = size;
-            cacheMap = new Dictionary<string, string>();
-            evictionPolicy = new LRUPolicy(size);
+            cacheMap = new ConcurrentDictionary<string, string>();
+            evictionPolicy = new LRUPolicy();
         }
 
         public string Get(string key)
         {
-            string value;
-            if (cacheMap.ContainsKey(key))
+            bool cacheHit = true;
+            string value = cacheMap.GetOrAdd(key, (key) =>
             {
-                value = cacheMap[key];
-                CacheHit++;
+                cacheHit = false;
+                return GetFromDb(key);
+            });
+
+            if (cacheHit)
+            {
+                Interlocked.Increment(ref CacheHit);
             }
             else
             {
-                value = GetFromDb(key);
                 if (cacheMap.Count > maxSize)
                 {
                     var keyToEvict = evictionPolicy.GetKeyToEvict();
-                    cacheMap.Remove(keyToEvict);
+                    cacheMap.TryRemove(keyToEvict, out _);
                 }
-                cacheMap[key] = value;
             }
             evictionPolicy.RegisterKeyHit(key);
-            TotalRequest++;
+            Interlocked.Increment(ref TotalRequest);
             return value;
         }
 
